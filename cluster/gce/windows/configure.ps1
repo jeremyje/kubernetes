@@ -27,6 +27,7 @@ $ErrorActionPreference = 'Stop'
 
 # Turn on tracing to debug
 # Set-PSDebug -Trace 1
+Set-PSDebug -Trace 2
 
 # Update TLS setting to enable Github downloads and disable progress bar to
 # increase download speed.

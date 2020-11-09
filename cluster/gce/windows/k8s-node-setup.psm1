@@ -1180,7 +1180,7 @@ function Start-WorkerServices {
       "--cluster-cidr=$(${kube_env}['CLUSTER_IP_RANGE'])",
       "--hostname-override=${instance_name}"
   )
-  
+
   $kubeproxy_args = ${default_kubeproxy_args} + ${kubeproxy_args}
   Log-Output "Final kubeproxy_args: ${kubeproxy_args}"
 
@@ -1296,14 +1296,27 @@ function Configure-Crictl {
 # Pull-InfraContainer must be called AFTER Verify-WorkerServices.
 function Pull-InfraContainer {
   $name, $label = ${env:INFRA_CONTAINER} -split ':',2
-  if (-not ("$(& crictl images)" -match "$name.*$label")) {
-    & crictl pull ${env:INFRA_CONTAINER}
-    if (!$?) {
-      throw "Error running 'crictl pull ${env:INFRA_CONTAINER}'"
+  Log-Output 'Downloading pause, maybe'
+  Log-Output "Pull-InfraContainer: $name -- $label"
+  if (${env:CONTAINER_RUNTIME} -eq "containerd") {
+    if (-not ("$(& crictl images)" -match "$name.*$label")) {
+      & crictl pull ${env:INFRA_CONTAINER}
+      if (!$?) {
+        throw "Error running 'crictl pull ${env:INFRA_CONTAINER}'"
+      }
     }
+    $inspect = "$(& crictl inspecti ${env:INFRA_CONTAINER} | Out-String)"
+    Log-Output "Infra/pause container:`n$inspect"
+  } else {
+    if (-not ("$(& docker images)" -match "$name.*$label")) {
+      & docker pull ${env:INFRA_CONTAINER}
+      if (!$?) {
+        throw "Error running 'docker pull ${env:INFRA_CONTAINER}'"
+      }
+    }
+    $inspect = "$(& docker image inspect ${env:INFRA_CONTAINER} | Out-String)"
+    Log-Output "Infra/pause container:`n$inspect"
   }
-  $inspect = "$(& crictl inspecti ${env:INFRA_CONTAINER} | Out-String)"
-  Log-Output "Infra/pause container:`n$inspect"
 }
 
 # Setup the container runtime on the node. It supports both
@@ -1626,7 +1639,7 @@ function Install-LoggingAgent {
     Log-Output ("Skip: Fluentbit logging agent is already installed")
     return
   }
-  
+
   DownloadAndInstall-LoggingAgents
   Create-LoggingAgentServices
 }
@@ -1699,7 +1712,7 @@ $FLUENTBIT_CONFIG = @'
     Log_File      /var/log/fluentbit.log
     Daemon        off
     Parsers_File  parsers.conf
-    HTTP_Server   off 
+    HTTP_Server   off
     HTTP_Listen   0.0.0.0
     HTTP_PORT     2020
     plugins_file plugins.conf
@@ -1753,7 +1766,7 @@ $FLUENTBIT_CONFIG = @'
     # Channels Setup,Windows PowerShell
     Channels     application,system,security
     Tag          winevent.raw
-    DB           winlog.sqlite   # 
+    DB           winlog.sqlite   #
 
 
 # Json Log Example:
@@ -1767,9 +1780,9 @@ $FLUENTBIT_CONFIG = @'
     Mem_Buf_Limit    5MB
     Skip_Long_Lines  On
     Refresh_Interval 5
-    DB               flb_kube.db  
+    DB               flb_kube.db
 
-    # Settings from fluentd missing here.  
+    # Settings from fluentd missing here.
     # tag reform.*
     # format json
     # time_key time
