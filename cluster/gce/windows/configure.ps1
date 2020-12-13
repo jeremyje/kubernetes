@@ -136,6 +136,7 @@ try {
   Setup-ContainerRuntime
   DownloadAndInstall-AuthPlugin
   DownloadAndInstall-KubernetesBinaries
+  DownloadAndInstall-NodeProblemDetector
   DownloadAndInstall-CSIProxyBinaries
   Start-CSIProxy
   Create-NodePki

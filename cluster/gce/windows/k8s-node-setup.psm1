@@ -398,6 +398,51 @@ function DownloadAndInstall-KubernetesBinaries {
   Remove-Item -Force -Recurse $tmp_dir
 }
 
+# Downloads the Node Problem Detector from kube-env's NPD_TAR_URL and
+# puts them in a subdirectory of $env:K8S_DIR\node-problem-detector\.
+#
+# Required ${kube_env} keys:
+#   NPD_TAR_URL
+#   NPD_TAR_HASH
+function DownloadAndInstall-NodeProblemDetector {
+  # Both the tar url and hash must be set to install NPD.
+  if ([string]::IsNullOrEmpty(${kube_env}['NPD_TAR_URL']) || [string]::IsNullOrEmpty(${kube_env}['NPD_TAR_HASH'])) {
+    return
+  }
+
+  # Assume that presence of kubelet.exe indicates that the kubernetes binaries
+  # were already previously downloaded to this node.
+  $npdroot = ${env:NODE_DIR}\node-problem-detector
+  if (-not (ShouldWrite-File ${npdroot}\node-problem-detector.exe)) {
+    return
+  }
+
+  $tmp_dir = 'C:\npd_tmp'
+  New-Item -Force -ItemType 'directory' $tmp_dir | Out-Null
+
+  $npdUrl = ${kube_env}['NPD_TAR_URL']
+  $filename = Split-Path -leaf $npdUrl[0]
+  $hash = $null
+  if ($kube_env.ContainsKey('NPD_TAR_HASH')) {
+    $hash = ${kube_env}['NPD_TAR_HASH']
+  }
+  MustDownload-File -Hash $hash -OutFile $tmp_dir\$filename -URLs $npdUrl
+
+  tar xzvf $tmp_dir\$filename -C $tmp_dir
+  Move-Item -Force $tmp_dir\node-problem-detector\* $npdroot\
+  Move-Item -Force $tmp_dir\node-problem-detector\LICENSES `
+    ${env:LICENSE_DIR}\LICENSES_node-problem-detector
+
+  # Clean up the temporary directory
+  Remove-Item -Force -Recurse $tmp_dir
+
+  Log-Output 'Installing Node Problem Detector Service'
+  & sc.exe create nodeproblemdetector binPath= "${npdroot}\node-problem-detector.exe $flags"
+  & sc.exe failure nodeproblemdetector reset= 0 actions= restart/1000/restart/10000
+  Log-Output "Starting Node Problem Detector Service"
+  & sc.exe start nodeproblemdetector
+}
+
 # Downloads the csi-proxy binaries from kube-env's CSI_PROXY_STORAGE_PATH and
 # CSI_PROXY_VERSION, and then puts them in a subdirectory of $env:NODE_DIR.
 # Note: for now the installation is skipped for non-test clusters. Will be

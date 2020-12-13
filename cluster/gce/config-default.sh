@@ -559,3 +559,12 @@ export ETCD_PROGRESS_NOTIFY_INTERVAL="${ETCD_PROGRESS_NOTIFY_INTERVAL:-10m}"
 # It improves container image pull performance since most time is spent
 # unzipping the image layers to disk.
 export WINDOWS_ENABLE_PIGZ="${WINDOWS_ENABLE_PIGZ:-true}"
+
+# Location of the Node Problem Detector package for Windows.
+# If set, the node problem detector package is downloaded and installed,
+# otherwise the node will run without NPD.
+export NPD_TAR_URL="${NPD_TAR_URL:-}"
+
+# The hash for the NPD package to download to verify it has not been tampered.
+# If blank, NPD will not be installed.
+export NPD_TAR_HASH="${NPD_TAR_HASH:-}"
