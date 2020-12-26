@@ -65,7 +65,7 @@ Import-Module -Force C:\common.psm1
 # Writes a TODO with $Message to the console.
 function Log_Todo {
   param (
-    [parameter(Mandatory=$true)] [string]$Message
+    [parameter(Mandatory = $true)] [string]$Message
   )
   Log-Output "TODO: ${Message}"
 }
@@ -74,7 +74,7 @@ function Log_Todo {
 # script.
 function Log_NotImplemented {
   param (
-    [parameter(Mandatory=$true)] [string]$Message
+    [parameter(Mandatory = $true)] [string]$Message
   )
   Log-Output "Not implemented yet: ${Message}" -Fatal
 }
@@ -84,13 +84,14 @@ function Log_NotImplemented {
 function Verify_GceMetadataServerRouteIsPresent {
   Try {
     Get-NetRoute `
-        -ErrorAction "Stop" `
-        -AddressFamily IPv4 `
-        -DestinationPrefix ${GCE_METADATA_SERVER}/32 | Out-Null
-  } Catch [Microsoft.PowerShell.Cmdletization.Cim.CimJobException] {
+      -ErrorAction "Stop" `
+      -AddressFamily IPv4 `
+      -DestinationPrefix ${GCE_METADATA_SERVER}/32 | Out-Null
+  }
+  Catch [Microsoft.PowerShell.Cmdletization.Cim.CimJobException] {
     Log-Output -Fatal `
-        ("GCE metadata server route is not present as expected.`n" +
-         "$(Get-NetRoute -AddressFamily IPv4 | Out-String)")
+    ("GCE metadata server route is not present as expected.`n" +
+      "$(Get-NetRoute -AddressFamily IPv4 | Out-String)")
   }
 }
 
@@ -100,14 +101,15 @@ function WaitFor_GceMetadataServerRouteToBeRemoved {
   $elapsed = 0
   $timeout = 60
   Log-Output ("Waiting up to ${timeout} seconds for GCE metadata server " +
-              "route to be removed")
+    "route to be removed")
   while (${elapsed} -lt ${timeout}) {
     Try {
       Get-NetRoute `
-          -ErrorAction "Stop" `
-          -AddressFamily IPv4 `
-          -DestinationPrefix ${GCE_METADATA_SERVER}/32 | Out-Null
-    } Catch [Microsoft.PowerShell.Cmdletization.Cim.CimJobException] {
+        -ErrorAction "Stop" `
+        -AddressFamily IPv4 `
+        -DestinationPrefix ${GCE_METADATA_SERVER}/32 | Out-Null
+    }
+    Catch [Microsoft.PowerShell.Cmdletization.Cim.CimJobException] {
       break
     }
     $sleeptime = 2
@@ -129,9 +131,9 @@ function Add_GceMetadataServerRoute {
   Get-NetAdapter | ForEach-Object {
     $adapter_index = $_.InterfaceIndex
     New-NetRoute `
-        -ErrorAction Ignore `
-        -DestinationPrefix "${GCE_METADATA_SERVER}/32" `
-        -InterfaceIndex ${adapter_index} | Out-Null
+      -ErrorAction Ignore `
+      -DestinationPrefix "${GCE_METADATA_SERVER}/32" `
+      -InterfaceIndex ${adapter_index} | Out-Null
   }
 }
 
@@ -158,7 +160,8 @@ function Dump-DebugInfoToConsole {
     Log-Output "Windows version:`n$version"
     Log-Output "Installed hotfixes:`n$hotfixes"
     Log-Output "GCE Windows image:`n$image"
-  } Catch { }
+  }
+  Catch { }
 }
 
 # Converts the kube-env string in Yaml
@@ -167,32 +170,32 @@ function Dump-DebugInfoToConsole {
 #   kube-env.
 function ConvertFrom_Yaml_KubeEnv {
   param (
-    [parameter(Mandatory=$true)] [string]$kube_env_str
+    [parameter(Mandatory = $true)] [string]$kube_env_str
   )
   $kube_env_table = @{}
   $currentLine = $null
   switch -regex (${kube_env_str} -split '\r?\n') {
-      '^(\S.*)' {
-          # record start pattern, line that doesn't start with a whitespace
-          if ($null -ne $currentLine) {
-              $key, $val = $currentLine -split ":",2
-              $kube_env_table[$key] = $val.Trim("'", " ", "`"")
-          }
-          $currentLine = $matches.1
-          continue
+    '^(\S.*)' {
+      # record start pattern, line that doesn't start with a whitespace
+      if ($null -ne $currentLine) {
+        $key, $val = $currentLine -split ":", 2
+        $kube_env_table[$key] = $val.Trim("'", " ", "`"")
       }
+      $currentLine = $matches.1
+      continue
+    }
 
-      '^(\s+.*)' {
-          # line that start with whitespace
-          $currentLine += $matches.1
-          continue
-      }
+    '^(\s+.*)' {
+      # line that start with whitespace
+      $currentLine += $matches.1
+      continue
+    }
   }
 
   # Handle the last line if any
   if ($currentLine) {
-      $key, $val = $currentLine -split ":",2
-      $kube_env_table[$key] = $val.Trim("'", " ", "`"")
+    $key, $val = $currentLine -split ":", 2
+    $kube_env_table[$key] = $val.Trim("'", " ", "`"")
   }
 
   return ${kube_env_table}
@@ -222,8 +225,8 @@ function Fetch-KubeEnv {
 # be present in the environment for all new shells after a reboot).
 function Set_MachineEnvironmentVar {
   param (
-    [parameter(Mandatory=$true)] [string]$Key,
-    [parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Value
+    [parameter(Mandatory = $true)] [string]$Key,
+    [parameter(Mandatory = $true)] [AllowEmptyString()] [string]$Value
   )
   [Environment]::SetEnvironmentVariable($Key, $Value, "Machine")
 }
@@ -231,8 +234,8 @@ function Set_MachineEnvironmentVar {
 # Sets the environment variable $Key to $Value in the current shell.
 function Set_CurrentShellEnvironmentVar {
   param (
-    [parameter(Mandatory=$true)] [string]$Key,
-    [parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Value
+    [parameter(Mandatory = $true)] [string]$Key,
+    [parameter(Mandatory = $true)] [AllowEmptyString()] [string]$Value
   )
   $expression = '$env:' + $Key + ' = "' + $Value + '"'
   Invoke-Expression ${expression}
@@ -242,53 +245,55 @@ function Set_CurrentShellEnvironmentVar {
 # in this module. Depends on numerous ${kube_env} keys.
 function Set-EnvironmentVars {
   if ($kube_env.ContainsKey('WINDOWS_CONTAINER_RUNTIME')) {
-      $container_runtime = ${kube_env}['WINDOWS_CONTAINER_RUNTIME']
-      $container_runtime_endpoint = ${kube_env}['WINDOWS_CONTAINER_RUNTIME_ENDPOINT']
-  } else {
-      Log-Output "ERROR: WINDOWS_CONTAINER_RUNTIME not set in kube-env, falling back in CONTAINER_RUNTIME"
-      $container_runtime = ${kube_env}['CONTAINER_RUNTIME']
-      $container_runtime_endpoint = ${kube_env}['CONTAINER_RUNTIME_ENDPOINT']
+    $container_runtime = ${kube_env}['WINDOWS_CONTAINER_RUNTIME']
+    $container_runtime_endpoint = ${kube_env}['WINDOWS_CONTAINER_RUNTIME_ENDPOINT']
+  }
+  else {
+    Log-Output "ERROR: WINDOWS_CONTAINER_RUNTIME not set in kube-env, falling back in CONTAINER_RUNTIME"
+    $container_runtime = ${kube_env}['CONTAINER_RUNTIME']
+    $container_runtime_endpoint = ${kube_env}['CONTAINER_RUNTIME_ENDPOINT']
   }
   # Turning the kube-env values into environment variables is not required but
   # it makes debugging this script easier, and it also makes the syntax a lot
   # easier (${env:K8S_DIR} can be expanded within a string but
   # ${kube_env}['K8S_DIR'] cannot be afaik).
   $env_vars = @{
-    "K8S_DIR" = ${kube_env}['K8S_DIR']
+    "K8S_DIR"                    = ${kube_env}['K8S_DIR']
     # Typically 'C:\etc\kubernetes\node\bin' (not just 'C:\etc\kubernetes\node')
-    "NODE_DIR" = ${kube_env}['NODE_DIR']
-    "CNI_DIR" = ${kube_env}['CNI_DIR']
-    "CNI_CONFIG_DIR" = ${kube_env}['CNI_CONFIG_DIR']
-    "WINDOWS_CNI_STORAGE_PATH" = ${kube_env}['WINDOWS_CNI_STORAGE_PATH']
-    "WINDOWS_CNI_VERSION" = ${kube_env}['WINDOWS_CNI_VERSION']
-    "CSI_PROXY_STORAGE_PATH" = ${kube_env}['CSI_PROXY_STORAGE_PATH']
-    "CSI_PROXY_VERSION" = ${kube_env}['CSI_PROXY_VERSION']
-    "ENABLE_CSI_PROXY" = ${kube_env}['ENABLE_CSI_PROXY']
-    "PKI_DIR" = ${kube_env}['PKI_DIR']
-    "CA_FILE_PATH" = ${kube_env}['CA_FILE_PATH']
-    "KUBELET_CONFIG" = ${kube_env}['KUBELET_CONFIG_FILE']
-    "BOOTSTRAP_KUBECONFIG" = ${kube_env}['BOOTSTRAP_KUBECONFIG_FILE']
-    "KUBECONFIG" = ${kube_env}['KUBECONFIG_FILE']
-    "KUBEPROXY_KUBECONFIG" = ${kube_env}['KUBEPROXY_KUBECONFIG_FILE']
-    "LOGS_DIR" = ${kube_env}['LOGS_DIR']
-    "MANIFESTS_DIR" = ${kube_env}['MANIFESTS_DIR']
-    "INFRA_CONTAINER" = ${kube_env}['WINDOWS_INFRA_CONTAINER']
-    "WINDOWS_ENABLE_PIGZ" = ${kube_env}['WINDOWS_ENABLE_PIGZ']
+    "NODE_DIR"                   = ${kube_env}['NODE_DIR']
+    "CNI_DIR"                    = ${kube_env}['CNI_DIR']
+    "CNI_CONFIG_DIR"             = ${kube_env}['CNI_CONFIG_DIR']
+    "WINDOWS_CNI_STORAGE_PATH"   = ${kube_env}['WINDOWS_CNI_STORAGE_PATH']
+    "WINDOWS_CNI_VERSION"        = ${kube_env}['WINDOWS_CNI_VERSION']
+    "CSI_PROXY_STORAGE_PATH"     = ${kube_env}['CSI_PROXY_STORAGE_PATH']
+    "CSI_PROXY_VERSION"          = ${kube_env}['CSI_PROXY_VERSION']
+    "ENABLE_CSI_PROXY"           = ${kube_env}['ENABLE_CSI_PROXY']
+    "PKI_DIR"                    = ${kube_env}['PKI_DIR']
+    "CA_FILE_PATH"               = ${kube_env}['CA_FILE_PATH']
+    "KUBELET_CONFIG"             = ${kube_env}['KUBELET_CONFIG_FILE']
+    "BOOTSTRAP_KUBECONFIG"       = ${kube_env}['BOOTSTRAP_KUBECONFIG_FILE']
+    "KUBECONFIG"                 = ${kube_env}['KUBECONFIG_FILE']
+    "KUBEPROXY_KUBECONFIG"       = ${kube_env}['KUBEPROXY_KUBECONFIG_FILE']
+    "LOGS_DIR"                   = ${kube_env}['LOGS_DIR']
+    "MANIFESTS_DIR"              = ${kube_env}['MANIFESTS_DIR']
+    "INFRA_CONTAINER"            = ${kube_env}['WINDOWS_INFRA_CONTAINER']
+    "WINDOWS_ENABLE_PIGZ"        = ${kube_env}['WINDOWS_ENABLE_PIGZ']
+    "WINDOWS_THREADED_STARTUP"        = ${kube_env}['WINDOWS_THREADED_STARTUP']
 
-    "Path" = ${env:Path} + ";" + ${kube_env}['NODE_DIR']
-    "KUBE_NETWORK" = "l2bridge".ToLower()
-    "KUBELET_CERT_PATH" = ${kube_env}['PKI_DIR'] + '\kubelet.crt'
-    "KUBELET_KEY_PATH" = ${kube_env}['PKI_DIR'] + '\kubelet.key'
+    "Path"                       = ${env:Path} + ";" + ${kube_env}['NODE_DIR']
+    "KUBE_NETWORK"               = "l2bridge".ToLower()
+    "KUBELET_CERT_PATH"          = ${kube_env}['PKI_DIR'] + '\kubelet.crt'
+    "KUBELET_KEY_PATH"           = ${kube_env}['PKI_DIR'] + '\kubelet.key'
 
-    "CONTAINER_RUNTIME" = $container_runtime
+    "CONTAINER_RUNTIME"          = $container_runtime
     "CONTAINER_RUNTIME_ENDPOINT" = $container_runtime_endpoint
 
-    'LICENSE_DIR' = 'C:\Program Files\Google\Compute Engine\THIRD_PARTY_NOTICES'
+    'LICENSE_DIR'                = 'C:\Program Files\Google\Compute Engine\THIRD_PARTY_NOTICES'
   }
 
   # Set the environment variables in two ways: permanently on the machine (only
   # takes effect after a reboot), and in the current shell.
-  $env_vars.GetEnumerator() | ForEach-Object{
+  $env_vars.GetEnumerator() | ForEach-Object {
     $message = "Setting environment variable: " + $_.key + " = " + $_.value
     Log-Output ${message}
     Set_MachineEnvironmentVar $_.key $_.value
@@ -306,7 +311,7 @@ function Set-PrerequisiteOptions {
 
   # Use TLS 1.2: needed for Invoke-WebRequest downloads from github.com.
   [Net.ServicePointManager]::SecurityProtocol = `
-      [Net.SecurityProtocolType]::Tls12
+    [Net.SecurityProtocolType]::Tls12
 }
 
 # Creates directories where other functions in this module will read and write
@@ -317,8 +322,8 @@ function Set-PrerequisiteOptions {
 function Create-Directories {
   Log-Output "Creating ${env:K8S_DIR} and its subdirectories."
   ForEach ($dir in ("${env:K8S_DIR}", "${env:NODE_DIR}", "${env:LOGS_DIR}",
-    "${env:CNI_DIR}", "${env:CNI_CONFIG_DIR}", "${env:MANIFESTS_DIR}",
-    "${env:PKI_DIR}", "${env:LICENSE_DIR}"), "C:\tmp", "C:\var\log") {
+      "${env:CNI_DIR}", "${env:CNI_CONFIG_DIR}", "${env:MANIFESTS_DIR}",
+      "${env:PKI_DIR}", "${env:LICENSE_DIR}"), "C:\tmp", "C:\var\log") {
     mkdir -Force $dir
   }
 }
@@ -328,8 +333,8 @@ function Create-Directories {
 function Download-HelperScripts {
   if (ShouldWrite-File ${env:K8S_DIR}\hns.psm1) {
     MustDownload-File `
-        -OutFile ${env:K8S_DIR}\hns.psm1 `
-        -URLs 'https://storage.googleapis.com/gke-release/winnode/config/sdn/master/hns.psm1'
+      -OutFile ${env:K8S_DIR}\hns.psm1 `
+      -URLs 'https://storage.googleapis.com/gke-release/winnode/config/sdn/master/hns.psm1'
   }
 }
 
@@ -352,18 +357,18 @@ function DownloadAndInstall-AuthPlugin {
   }
 
   if (-not ($kube_env.ContainsKey('EXEC_AUTH_PLUGIN_LICENSE_URL') -and
-            $kube_env.ContainsKey('EXEC_AUTH_PLUGIN_HASH') -and
-            $kube_env.ContainsKey('EXEC_AUTH_PLUGIN_URL'))) {
+      $kube_env.ContainsKey('EXEC_AUTH_PLUGIN_HASH') -and
+      $kube_env.ContainsKey('EXEC_AUTH_PLUGIN_URL'))) {
     Log-Output -Fatal ("Missing one or more kube-env keys needed for " +
-                       "downloading auth plugin: $(Out-String $kube_env)")
+      "downloading auth plugin: $(Out-String $kube_env)")
   }
   MustDownload-File `
-      -URLs ${kube_env}['EXEC_AUTH_PLUGIN_URL'] `
-      -Hash ${kube_env}['EXEC_AUTH_PLUGIN_HASH'] `
-      -OutFile "${env:NODE_DIR}\gke-exec-auth-plugin.exe"
+    -URLs ${kube_env}['EXEC_AUTH_PLUGIN_URL'] `
+    -Hash ${kube_env}['EXEC_AUTH_PLUGIN_HASH'] `
+    -OutFile "${env:NODE_DIR}\gke-exec-auth-plugin.exe"
   MustDownload-File `
-      -URLs ${kube_env}['EXEC_AUTH_PLUGIN_LICENSE_URL'] `
-      -OutFile "${env:LICENSE_DIR}\LICENSE_gke-exec-auth-plugin.txt"
+    -URLs ${kube_env}['EXEC_AUTH_PLUGIN_LICENSE_URL'] `
+    -OutFile "${env:LICENSE_DIR}\LICENSE_gke-exec-auth-plugin.txt"
 }
 
 # Downloads the Kubernetes binaries from kube-env's NODE_BINARY_TAR_URL and
@@ -392,7 +397,7 @@ function DownloadAndInstall-KubernetesBinaries {
   tar xzvf $tmp_dir\$filename -C $tmp_dir
   Move-Item -Force $tmp_dir\kubernetes\node\bin\* ${env:NODE_DIR}\
   Move-Item -Force `
-      $tmp_dir\kubernetes\LICENSES ${env:LICENSE_DIR}\LICENSES_kubernetes
+    $tmp_dir\kubernetes\LICENSES ${env:LICENSE_DIR}\LICENSES_kubernetes
 
   # Clean up the temporary directory
   Remove-Item -Force -Recurse $tmp_dir
@@ -434,8 +439,7 @@ function Start-CSIProxy {
 # https://github.com/Microsoft/SDN/blob/master/Kubernetes/windows/start-kubelet.ps1#L98.
 # See if there's a way to fetch or construct the "management subnet" so that
 # this is not needed.
-function ConvertTo_DecimalIP
-{
+function ConvertTo_DecimalIP {
   param(
     [parameter(Mandatory = $true, Position = 0)]
     [Net.IPAddress] $IPAddress
@@ -452,18 +456,17 @@ function ConvertTo_DecimalIP
 # https://github.com/Microsoft/SDN/blob/master/Kubernetes/windows/start-kubelet.ps1#L98.
 # See if there's a way to fetch or construct the "management subnet" so that
 # this is not needed.
-function ConvertTo_DottedDecimalIP
-{
+function ConvertTo_DottedDecimalIP {
   param(
     [parameter(Mandatory = $true, Position = 0)]
     [Uint32] $IPAddress
   )
 
   $dotted_ip = $(for ($i = 3; $i -gt -1; $i--) {
-    $remainder = $IPAddress % [Math]::Pow(256, $i)
-    ($IPAddress - $remainder) / [Math]::Pow(256, $i)
-    $IPAddress = $remainder
-  })
+      $remainder = $IPAddress % [Math]::Pow(256, $i)
+      ($IPAddress - $remainder) / [Math]::Pow(256, $i)
+      $IPAddress = $remainder
+    })
   return [String]::Join(".", $dotted_ip)
 }
 
@@ -471,8 +474,7 @@ function ConvertTo_DottedDecimalIP
 # https://github.com/Microsoft/SDN/blob/master/Kubernetes/windows/start-kubelet.ps1#L98.
 # See if there's a way to fetch or construct the "management subnet" so that
 # this is not needed.
-function ConvertTo_MaskLength
-{
+function ConvertTo_MaskLength {
   param(
     [parameter(Mandatory = $True, Position = 0)]
     [Net.IPAddress] $SubnetMask
@@ -492,7 +494,7 @@ function Get_MgmtNetAdapter {
   $net_adapter = Get-NetAdapter | Where-Object Name -like ${MGMT_ADAPTER_NAME}
   if (-not ${net_adapter}) {
     Throw ("Failed to find a suitable network adapter, check your network " +
-           "settings.")
+      "settings.")
   }
 
   return $net_adapter
@@ -502,8 +504,8 @@ function Get_MgmtNetAdapter {
 # nothing if $File already exists and $REDO_STEPS is not set.
 function Write_PkiData {
   param (
-    [parameter(Mandatory=$true)] [string] $Data,
-    [parameter(Mandatory=$true)] [string] $File
+    [parameter(Mandatory = $true)] [string] $Data,
+    [parameter(Mandatory = $true)] [string] $File
   )
 
   if (-not (ShouldWrite-File $File)) {
@@ -514,7 +516,7 @@ function Write_PkiData {
   # --decode" on Linux. See https://stackoverflow.com/a/51914136/1230197.
   [IO.File]::WriteAllBytes($File, [Convert]::FromBase64String($Data))
   Log_Todo ("need to set permissions correctly on ${File}; not sure what the " +
-            "Windows equivalent of 'umask 077' is")
+    "Windows equivalent of 'umask 077' is")
   # Linux: owned by root, rw by user only.
   #   -rw------- 1 root root 1.2K Oct 12 00:56 ca-certificates.crt
   #   -rw------- 1 root root 1.3K Oct 12 00:56 kubelet.crt
@@ -548,7 +550,7 @@ function Create-NodePki {
   # should be set instead.
   if (Test-NodeUsesAuthPlugin ${kube_env}) {
     Log-Output ('Skipping KUBELET_CERT and KUBELET_KEY, plugin will be used ' +
-                'for authentication')
+      'for authentication')
     return
   }
 
@@ -588,7 +590,7 @@ function Write_BootstrapKubeconfig {
   $apiserverAddress = ${kube_env}['KUBERNETES_MASTER_NAME']
   New-Item -Force -ItemType file ${env:BOOTSTRAP_KUBECONFIG} | Out-Null
   Set-Content ${env:BOOTSTRAP_KUBECONFIG} `
-'apiVersion: v1
+    'apiVersion: v1
 kind: Config
 users:
 - name: kubelet
@@ -611,7 +613,7 @@ current-context: service-account-context'.`
     replace('APISERVER_ADDRESS', ${apiserverAddress}).`
     replace('CA_FILE_PATH', ${env:CA_FILE_PATH})
   Log-Output ("kubelet bootstrap kubeconfig:`n" +
-              "$(Get-Content -Raw ${env:BOOTSTRAP_KUBECONFIG})")
+    "$(Get-Content -Raw ${env:BOOTSTRAP_KUBECONFIG})")
 }
 
 # Fetches the kubelet kubeconfig from the metadata server and writes it to
@@ -626,12 +628,12 @@ function Write_KubeconfigFromMetadata {
   $kubeconfig = Get-InstanceMetadataAttribute 'kubeconfig'
   if ($kubeconfig -eq $null) {
     Log-Output `
-        "kubeconfig metadata key not found, can't write ${env:KUBECONFIG}" `
-        -Fatal
+      "kubeconfig metadata key not found, can't write ${env:KUBECONFIG}" `
+      -Fatal
   }
   Set-Content ${env:KUBECONFIG} $kubeconfig
   Log-Output ("kubelet kubeconfig from metadata (non-bootstrap):`n" +
-              "$(Get-Content -Raw ${env:KUBECONFIG})")
+    "$(Get-Content -Raw ${env:KUBECONFIG})")
 }
 
 # Creates the kubelet kubeconfig at $env:KUBECONFIG for nodes that use an
@@ -644,7 +646,8 @@ function Write_KubeconfigFromMetadata {
 function Create-KubeletKubeconfig {
   if (Test-NodeUsesAuthPlugin ${kube_env}) {
     Write_KubeconfigFromMetadata
-  } else {
+  }
+  else {
     Write_BootstrapKubeconfig
   }
 }
@@ -667,7 +670,7 @@ function Create-KubeproxyKubeconfig {
   # kubeproxy kubeconfig uses certificate-authority-data, ugh. Does it matter?
   # Use just one or the other for consistency?
   Set-Content ${env:KUBEPROXY_KUBECONFIG} `
-'apiVersion: v1
+    'apiVersion: v1
 kind: Config
 users:
 - name: kube-proxy
@@ -689,13 +692,13 @@ current-context: service-account-context'.`
     replace('APISERVER_ADDRESS', ${kube_env}['KUBERNETES_MASTER_NAME'])
 
   Log-Output ("kubeproxy kubeconfig:`n" +
-              "$(Get-Content -Raw ${env:KUBEPROXY_KUBECONFIG})")
+    "$(Get-Content -Raw ${env:KUBEPROXY_KUBECONFIG})")
 }
 
 # Returns the IP alias range configured for this GCE instance.
 function Get_IpAliasRange {
   $url = ("http://${GCE_METADATA_SERVER}/computeMetadata/v1/instance/" +
-          "network-interfaces/0/ip-aliases/0")
+    "network-interfaces/0/ip-aliases/0")
   $client = New-Object Net.WebClient
   $client.Headers.Add('Metadata-Flavor', 'Google')
   return ($client.DownloadString($url)).Trim()
@@ -703,7 +706,7 @@ function Get_IpAliasRange {
 
 # Retrieves the pod CIDR and sets it in $env:POD_CIDR.
 function Set-PodCidr {
-  while($true) {
+  while ($true) {
     $pod_cidr = Get_IpAliasRange
     if (-not $?) {
       Log-Output ${pod_cIDR}
@@ -748,25 +751,25 @@ function Add_InitialHnsNetwork {
   if ($hns_network) {
     if ($REDO_STEPS) {
       Log-Output ("Warning: initial '$INITIAL_HNS_NETWORK' HNS network " +
-                  "already exists, removing it and recreating it")
+        "already exists, removing it and recreating it")
       $hns_network | Remove-HnsNetwork
       $hns_network = $null
     }
     else {
       Log-Output ("Skip: initial '$INITIAL_HNS_NETWORK' HNS network " +
-                  "already exists, not recreating it")
+        "already exists, not recreating it")
       return
     }
   }
   Log-Output ("Creating initial HNS network to force creation of " +
-              "${MGMT_ADAPTER_NAME} interface")
+    "${MGMT_ADAPTER_NAME} interface")
   # Note: RDP connection will hiccup when running this command.
   New-HNSNetwork `
-      -Type "L2Bridge" `
-      -AddressPrefix "192.168.255.0/30" `
-      -Gateway "192.168.255.1" `
-      -Name $INITIAL_HNS_NETWORK `
-      -Verbose
+    -Type "L2Bridge" `
+    -AddressPrefix "192.168.255.0/30" `
+    -Gateway "192.168.255.1" `
+    -Name $INITIAL_HNS_NETWORK `
+    -Verbose
 }
 
 # Get the network in uint32 for the given cidr
@@ -780,8 +783,8 @@ function Get_NetworkDecimal_From_CIDR([string] $cidr) {
 # For Windows nodes the pod gateway IP address is the first address in the pod
 # CIDR for the host.
 function Get_Gateway_From_CIDR([string] $cidr) {
-  $network=Get_NetworkDecimal_From_CIDR($cidr)
-  $gateway=ConvertTo_DottedDecimalIP($network+1)
+  $network = Get_NetworkDecimal_From_CIDR($cidr)
+  $gateway = ConvertTo_DottedDecimalIP($network + 1)
   return $gateway
 }
 
@@ -789,8 +792,8 @@ function Get_Gateway_From_CIDR([string] $cidr) {
 # For Windows nodes the pod gateway IP address is the first address in the pod
 # CIDR for the host, but from inside containers it's the second address.
 function Get_Endpoint_Gateway_From_CIDR([string] $cidr) {
-  $network=Get_NetworkDecimal_From_CIDR($cidr)
-  $gateway=ConvertTo_DottedDecimalIP($network+2)
+  $network = Get_NetworkDecimal_From_CIDR($cidr)
+  $gateway = ConvertTo_DottedDecimalIP($network + 2)
   return $gateway
 }
 
@@ -798,8 +801,8 @@ function Get_Endpoint_Gateway_From_CIDR([string] $cidr) {
 # We reserve the first two in the cidr range for gateways. Start the cidr
 # range from the third so that IPAM does not allocate those IPs to pods.
 function Get_PodIP_Range_Start([string] $cidr) {
-  $network=Get_NetworkDecimal_From_CIDR($cidr)
-  $start=ConvertTo_DottedDecimalIP($network+3)
+  $network = Get_NetworkDecimal_From_CIDR($cidr)
+  $start = ConvertTo_DottedDecimalIP($network + 3)
   return $start
 }
 
@@ -821,14 +824,14 @@ function Configure-HostNetworkingService {
   $pod_gateway = Get_Gateway_From_CIDR(${env:POD_CIDR})
   $pod_endpoint_gateway = Get_Endpoint_Gateway_From_CIDR(${env:POD_CIDR})
   Log-Output ("Setting up Windows node HNS networking: " +
-              "podCidr = ${env:POD_CIDR}, podGateway = ${pod_gateway}, " +
-              "podEndpointGateway = ${pod_endpoint_gateway}")
+    "podCidr = ${env:POD_CIDR}, podGateway = ${pod_gateway}, " +
+    "podEndpointGateway = ${pod_endpoint_gateway}")
 
   $hns_network = Get-HnsNetwork | Where-Object Name -eq ${env:KUBE_NETWORK}
   if ($hns_network) {
     if ($REDO_STEPS) {
       Log-Output ("Warning: ${env:KUBE_NETWORK} HNS network already exists, " +
-                  "removing it and recreating it")
+        "removing it and recreating it")
       $hns_network | Remove-HnsNetwork
       $hns_network = $null
     }
@@ -840,11 +843,11 @@ function Configure-HostNetworkingService {
   if (-not $hns_network) {
     # Note: RDP connection will hiccup when running this command.
     $hns_network = New-HNSNetwork `
-        -Type "L2Bridge" `
-        -AddressPrefix ${env:POD_CIDR} `
-        -Gateway ${pod_gateway} `
-        -Name ${env:KUBE_NETWORK} `
-        -Verbose
+      -Type "L2Bridge" `
+      -AddressPrefix ${env:POD_CIDR} `
+      -Gateway ${pod_gateway} `
+      -Name ${env:KUBE_NETWORK} `
+      -Verbose
     $created_hns_network = $true
   }
 
@@ -857,7 +860,7 @@ function Configure-HostNetworkingService {
   if ($hns_endpoint) {
     if ($REDO_STEPS) {
       Log-Output ("Warning: HNS endpoint $endpoint_name already exists, " +
-                  "removing it and recreating it")
+        "removing it and recreating it")
       $hns_endpoint | Remove-HnsEndpoint
       $hns_endpoint = $null
     }
@@ -867,22 +870,23 @@ function Configure-HostNetworkingService {
   }
   if (-not $hns_endpoint) {
     $hns_endpoint = New-HnsEndpoint `
-        -NetworkId ${hns_network}.Id `
-        -Name ${endpoint_name} `
-        -IPAddress ${pod_endpoint_gateway} `
-        -Gateway "0.0.0.0" `
-        -Verbose
+      -NetworkId ${hns_network}.Id `
+      -Name ${endpoint_name} `
+      -IPAddress ${pod_endpoint_gateway} `
+      -Gateway "0.0.0.0" `
+      -Verbose
     # TODO(pjh): find out: why is this always CompartmentId 1?
     Attach-HnsHostEndpoint `
-        -EndpointID ${hns_endpoint}.Id `
-        -CompartmentID 1 `
-        -Verbose
+      -EndpointID ${hns_endpoint}.Id `
+      -CompartmentID 1 `
+      -Verbose
     netsh interface ipv4 set interface "${vnic_name}" forwarding=enabled
   }
 
   Try {
     Get-HNSPolicyList | Remove-HnsPolicyList
-  } Catch { }
+  }
+  Catch { }
 
   # Add a route from the management NIC to the pod CIDR.
   #
@@ -897,11 +901,11 @@ function Configure-HostNetworkingService {
   # VM.
   $mgmt_net_adapter = Get_MgmtNetAdapter
   New-NetRoute `
-      -ErrorAction Ignore `
-      -InterfaceAlias ${mgmt_net_adapter}.ifAlias `
-      -DestinationPrefix ${env:POD_CIDR} `
-      -NextHop "0.0.0.0" `
-      -Verbose
+    -ErrorAction Ignore `
+    -InterfaceAlias ${mgmt_net_adapter}.ifAlias `
+    -DestinationPrefix ${env:POD_CIDR} `
+    -NextHop "0.0.0.0" `
+    -Verbose
 
   if ($created_hns_network) {
     # There is an HNS bug where the route to the GCE metadata server will be
@@ -933,7 +937,7 @@ function Configure-GcePdTools {
   }
 
   Add-Content $PsHome\profile.ps1 `
-  '$modulePath = "K8S_DIR\GetGcePdName.dll"
+    '$modulePath = "K8S_DIR\GetGcePdName.dll"
   Unblock-File $modulePath
   Import-Module -Name $modulePath'.replace('K8S_DIR', ${env:K8S_DIR})
 }
@@ -944,7 +948,8 @@ function Prepare-CniNetworking {
     # For containerd the CNI binaries have already been installed along with
     # the runtime.
     Configure_Containerd_CniNetworking
-  } else {
+  }
+  else {
     Install_Cni_Binaries
     Configure_Dockerd_CniNetworking
   }
@@ -953,7 +958,7 @@ function Prepare-CniNetworking {
 # Downloads the Windows CNI binaries and puts them in $env:CNI_DIR.
 function Install_Cni_Binaries {
   if (-not (ShouldWrite-File ${env:CNI_DIR}\win-bridge.exe) -and
-      -not (ShouldWrite-File ${env:CNI_DIR}\host-local.exe)) {
+    -not (ShouldWrite-File ${env:CNI_DIR}\host-local.exe)) {
     return
   }
 
@@ -962,14 +967,14 @@ function Install_Cni_Binaries {
 
   $release_url = "${env:WINDOWS_CNI_STORAGE_PATH}/${env:WINDOWS_CNI_VERSION}/"
   $tgz_url = ($release_url +
-              "cni-plugins-windows-amd64-${env:WINDOWS_CNI_VERSION}.tgz")
+    "cni-plugins-windows-amd64-${env:WINDOWS_CNI_VERSION}.tgz")
   $sha_url = ($tgz_url + ".sha512")
   MustDownload-File -URLs $sha_url -OutFile $tmp_dir\cni-plugins.sha512
-  $sha512_val = ($(Get-Content $tmp_dir\cni-plugins.sha512) -split ' ',2)[0]
+  $sha512_val = ($(Get-Content $tmp_dir\cni-plugins.sha512) -split ' ', 2)[0]
   MustDownload-File `
-      -URLs $tgz_url `
-      -OutFile $tmp_dir\cni-plugins.tgz `
-      -Hash $sha512_val
+    -URLs $tgz_url `
+    -OutFile $tmp_dir\cni-plugins.tgz `
+    -Hash $sha512_val
 
   tar xzvf $tmp_dir\cni-plugins.tgz -C $tmp_dir
   Move-Item -Force $tmp_dir\host-local.exe ${env:CNI_DIR}\
@@ -977,10 +982,10 @@ function Install_Cni_Binaries {
   Remove-Item -Force -Recurse $tmp_dir
 
   if (-not ((Test-Path ${env:CNI_DIR}\win-bridge.exe) -and `
-            (Test-Path ${env:CNI_DIR}\host-local.exe))) {
+      (Test-Path ${env:CNI_DIR}\host-local.exe))) {
     Log-Output `
-        "win-bridge.exe and host-local.exe not found in ${env:CNI_DIR}" `
-        -Fatal
+      "win-bridge.exe and host-local.exe not found in ${env:CNI_DIR}" `
+      -Fatal
   }
 }
 
@@ -1003,7 +1008,7 @@ function Configure_Dockerd_CniNetworking {
   }
 
   $mgmt_ip = (Get_MgmtNetAdapter |
-              Get-NetIPAddress -AddressFamily IPv4).IPAddress
+    Get-NetIPAddress -AddressFamily IPv4).IPAddress
 
   $cidr_range_start = Get_PodIP_Range_Start(${env:POD_CIDR})
 
@@ -1020,7 +1025,7 @@ function Configure_Dockerd_CniNetworking {
 
   New-Item -Force -ItemType file ${l2bridge_conf} | Out-Null
   Set-Content ${l2bridge_conf} `
-'{
+    '{
   "cniVersion":  "0.2.0",
   "name":  "l2bridge",
   "type":  "win-bridge",
@@ -1080,14 +1085,15 @@ function Configure_Dockerd_CniNetworking {
     }
   ]
 }'.replace('POD_CIDR', ${env:POD_CIDR}).`
-  replace('CIDR_RANGE_START', ${cidr_range_start}).`
-  replace('DNS_SERVER_IP', ${kube_env}['DNS_SERVER_IP']).`
-  replace('DNS_DOMAIN', ${kube_env}['DNS_DOMAIN']).`
-  replace('MGMT_IP', ${mgmt_ip}).`
-  replace('SERVICE_CIDR', ${kube_env}['SERVICE_CLUSTER_IP_RANGE'])
+    replace('CIDR_RANGE_START', ${cidr_range_start}).`
+    replace('DNS_SERVER_IP', ${kube_env}['DNS_SERVER_IP']).`
+    replace('DNS_DOMAIN', ${kube_env}['DNS_DOMAIN']).`
+    replace('MGMT_IP', ${mgmt_ip}).`
+    replace('SERVICE_CIDR', ${kube_env}['SERVICE_CLUSTER_IP_RANGE'])
 
   Log-Output "CNI config:`n$(Get-Content -Raw ${l2bridge_conf})"
 }
+
 
 # Obtain the host dns conf and save it to a file so that kubelet/CNI
 # can use it to configure dns suffix search list for pods.
@@ -1098,10 +1104,10 @@ function Configure_Dockerd_CniNetworking {
 function Configure-HostDnsConf {
   $net_adapter = Get_MgmtNetAdapter
   $server_ips = (Get-DnsClientServerAddress `
-          -InterfaceAlias ${net_adapter}.Name).ServerAddresses
+      -InterfaceAlias ${net_adapter}.Name).ServerAddresses
   $search_list = (Get-DnsClient).ConnectionSpecificSuffixSearchList
   $conf = ""
-  ForEach ($ip in $server_ips)  {
+  ForEach ($ip in $server_ips) {
     $conf = $conf + "nameserver $ip`r`n"
   }
   $conf = $conf + "search $search_list"
@@ -1151,14 +1157,14 @@ function Start-WorkerServices {
   $instance_name = "$(Get-InstanceMetadata 'name' | Out-String)"
   $default_kubelet_args = @(`
       "--pod-infra-container-image=${env:INFRA_CONTAINER}",
-      "--hostname-override=${instance_name}"
+    "--hostname-override=${instance_name}"
   )
 
   $kubelet_args = ${default_kubelet_args} + ${kubelet_args}
   if (-not (Test-NodeUsesAuthPlugin ${kube_env})) {
     Log-Output 'Using bootstrap kubeconfig for authentication'
     $kubelet_args = (${kubelet_args} +
-                     "--bootstrap-kubeconfig=${env:BOOTSTRAP_KUBECONFIG}")
+      "--bootstrap-kubeconfig=${env:BOOTSTRAP_KUBECONFIG}")
   }
   Log-Output "Final kubelet_args: ${kubelet_args}"
 
@@ -1178,8 +1184,8 @@ function Start-WorkerServices {
   # And also with various volumeMounts and "securityContext: privileged: true".
   $default_kubeproxy_args = @(`
       "--kubeconfig=${env:KUBEPROXY_KUBECONFIG}",
-      "--cluster-cidr=$(${kube_env}['CLUSTER_IP_RANGE'])",
-      "--hostname-override=${instance_name}"
+    "--cluster-cidr=$(${kube_env}['CLUSTER_IP_RANGE'])",
+    "--hostname-override=${instance_name}"
   )
 
   $kubeproxy_args = ${default_kubeproxy_args} + ${kubeproxy_args}
@@ -1206,7 +1212,7 @@ function Start-WorkerServices {
   # kubelet`). See issue #72900.
   if (Get-Process | Where-Object Name -eq "kubelet") {
     Log-Output -Fatal `
-        "A kubelet process is already running, don't know what to do"
+      "A kubelet process is already running, don't know what to do"
   }
   Log-Output "Creating kubelet service"
   & sc.exe create kubelet binPath= "${env:NODE_DIR}\kubelet.exe ${kubelet_args}" start= demand
@@ -1219,7 +1225,7 @@ function Start-WorkerServices {
 
   if (Get-Process | Where-Object Name -eq "kube-proxy") {
     Log-Output -Fatal `
-        "A kube-proxy process is already running, don't know what to do"
+      "A kube-proxy process is already running, don't know what to do"
   }
   Log-Output "Creating kube-proxy service"
   & sc.exe create kube-proxy binPath= "${env:NODE_DIR}\kube-proxy.exe ${kubeproxy_args}" start= demand
@@ -1258,7 +1264,7 @@ function WaitFor_KubeletAndKubeProxyReady {
 # TODO(pjh): run more verification commands.
 function Verify-WorkerServices {
   Log-Output ("kubectl get nodes:`n" +
-              $(& "${env:NODE_DIR}\kubectl.exe" get nodes | Out-String))
+    $(& "${env:NODE_DIR}\kubectl.exe" get nodes | Out-String))
   Verify_GceMetadataServerRouteIsPresent
   Log_Todo "run more verification commands."
 }
@@ -1271,13 +1277,13 @@ function DownloadAndInstall-Crictl {
   }
   $CRI_TOOLS_GCS_BUCKET = 'k8s-artifacts-cri-tools'
   $url = ('https://storage.googleapis.com/' + $CRI_TOOLS_GCS_BUCKET +
-          '/release/' + $CRICTL_VERSION + '/crictl-' + $CRICTL_VERSION +
-          '-windows-amd64.tar.gz')
+    '/release/' + $CRICTL_VERSION + '/crictl-' + $CRICTL_VERSION +
+    '-windows-amd64.tar.gz')
   MustDownload-File `
-      -URLs $url `
-      -OutFile ${env:NODE_DIR}\crictl.tar.gz `
-      -Hash $CRICTL_SHA256 `
-      -Algorithm SHA256
+    -URLs $url `
+    -OutFile ${env:NODE_DIR}\crictl.tar.gz `
+    -Hash $CRICTL_SHA256 `
+    -Algorithm SHA256
   tar xzvf ${env:NODE_DIR}\crictl.tar.gz -C ${env:NODE_DIR}
 }
 
@@ -1285,7 +1291,7 @@ function DownloadAndInstall-Crictl {
 function Configure-Crictl {
   if (${env:CONTAINER_RUNTIME_ENDPOINT}) {
     & "${env:NODE_DIR}\crictl.exe" config runtime-endpoint `
-        ${env:CONTAINER_RUNTIME_ENDPOINT}
+      ${env:CONTAINER_RUNTIME_ENDPOINT}
   }
 }
 
@@ -1296,7 +1302,7 @@ function Configure-Crictl {
 # node startup steps!
 # Pull-InfraContainer must be called AFTER Verify-WorkerServices.
 function Pull-InfraContainer {
-  $name, $label = ${env:INFRA_CONTAINER} -split ':',2
+  $name, $label = ${env:INFRA_CONTAINER} -split ':', 2
   if (-not ("$(& crictl images)" -match "$name.*$label")) {
     & crictl pull ${env:INFRA_CONTAINER}
     if (!$?) {
@@ -1315,7 +1321,8 @@ function Setup-ContainerRuntime {
     Install_Containerd
     Configure_Containerd
     Start_Containerd
-  } else {
+  }
+  else {
     Create_DockerRegistryKey
     Configure_Dockerd
   }
@@ -1331,7 +1338,7 @@ function Create_DockerRegistryKey {
   New-Item -Force -ItemType 'directory' ${tmp_dir} | Out-Null
   $reg_file = 'docker.reg'
   Set-Content ${tmp_dir}\${reg_file} `
-'Windows Registry Editor Version 5.00
+    'Windows Registry Editor Version 5.00
  [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\EventLog\Application\docker]
 "CustomSource"=dword:00000001
 "EventMessageFile"="C:\\Program Files\\docker\\dockerd.exe"
@@ -1354,7 +1361,7 @@ function Configure_Dockerd {
 }
 '@
 
- Restart-Service Docker
+  Restart-Service Docker
 }
 
 # Writes a CNI config file under $env:CNI_CONFIG_DIR for containerd.
@@ -1377,7 +1384,7 @@ function Configure_Containerd_CniNetworking {
   }
 
   $mgmt_ip = (Get_MgmtNetAdapter |
-              Get-NetIPAddress -AddressFamily IPv4).IPAddress
+    Get-NetIPAddress -AddressFamily IPv4).IPAddress
 
   $pod_gateway = Get_Endpoint_Gateway_From_CIDR(${env:POD_CIDR})
 
@@ -1394,7 +1401,7 @@ function Configure_Containerd_CniNetworking {
 
   New-Item -Force -ItemType file ${l2bridge_conf} | Out-Null
   Set-Content ${l2bridge_conf} `
-'{
+    '{
   "cniVersion":  "0.2.0",
   "name":  "l2bridge",
   "type":  "sdnbridge",
@@ -1464,11 +1471,11 @@ function Configure_Containerd_CniNetworking {
     }
   ]
 }'.replace('POD_CIDR', ${env:POD_CIDR}).`
-  replace('POD_GATEWAY', ${pod_gateway}).`
-  replace('DNS_SERVER_IP', ${kube_env}['DNS_SERVER_IP']).`
-  replace('DNS_DOMAIN', ${kube_env}['DNS_DOMAIN']).`
-  replace('MGMT_IP', ${mgmt_ip}).`
-  replace('SERVICE_CIDR', ${kube_env}['SERVICE_CLUSTER_IP_RANGE'])
+    replace('POD_GATEWAY', ${pod_gateway}).`
+    replace('DNS_SERVER_IP', ${kube_env}['DNS_SERVER_IP']).`
+    replace('DNS_DOMAIN', ${kube_env}['DNS_DOMAIN']).`
+    replace('MGMT_IP', ${mgmt_ip}).`
+    replace('SERVICE_CIDR', ${kube_env}['SERVICE_CLUSTER_IP_RANGE'])
 
   Log-Output "containerd CNI config:`n$(Get-Content -Raw ${l2bridge_conf})"
 }
@@ -1492,16 +1499,16 @@ function Install_Containerd {
   $version = $(Get-Content $tmp_dir\version)
 
   $tar_url = ("https://storage.googleapis.com/$CONTAINERD_GCS_BUCKET/" +
-              "cri-containerd-cni-$version.windows-amd64.tar.gz")
+    "cri-containerd-cni-$version.windows-amd64.tar.gz")
   $sha_url = $tar_url + ".sha256"
   MustDownload-File -URLs $sha_url -OutFile $tmp_dir\sha256
   $sha = $(Get-Content $tmp_dir\sha256)
 
   MustDownload-File `
-      -URLs $tar_url `
-      -OutFile $tmp_dir\containerd.tar.gz `
-      -Hash $sha `
-      -Algorithm SHA256
+    -URLs $tar_url `
+    -OutFile $tmp_dir\containerd.tar.gz `
+    -Hash $sha `
+    -Algorithm SHA256
 
   tar xzvf $tmp_dir\containerd.tar.gz -C $tmp_dir
   Move-Item -Force $tmp_dir\cni\*.exe ${env:CNI_DIR}\
@@ -1559,7 +1566,8 @@ function Install-Pigz {
       # See: https://github.com/containerd/containerd/issues/1896
       Add-MachineEnvironmentPath -Path $PIGZ_ROOT
       Log-Output "Installed Pigz $PIGZ_VERSION"
-    } else {
+    }
+    else {
       Log-Output "Pigz already installed."
     }
   }
@@ -1581,12 +1589,12 @@ $LOGGINGEXPORTER_CMDLINE = '*flb-exporter.exe*'
 # Restart Logging agent or starts it if it is not currently running
 function Restart-LoggingAgent {
   if (IsStackdriverAgentInstalled) {
-      Restart-StackdriverAgent
-      return
+    Restart-StackdriverAgent
+    return
   }
 
-   Restart-LogService $LOGGINGEXPORTER_SERVICE $LOGGINGEXPORTER_CMDLINE
-   Restart-LogService $LOGGINGAGENT_SERVICE $LOGGINGAGENT_CMDLINE
+  Restart-LogService $LOGGINGEXPORTER_SERVICE $LOGGINGEXPORTER_CMDLINE
+  Restart-LogService $LOGGINGAGENT_SERVICE $LOGGINGAGENT_CMDLINE
 }
 
 # Restarts the service, or starts it if it is not currently
@@ -1600,8 +1608,8 @@ function Restart-LogService([string]$service, [string]$cmdline) {
   $timeout = 10
   $stopped = (Get-service $service).Status -eq 'Stopped'
   for ($i = 0; $i -lt $timeout -and !($stopped); $i++) {
-      Start-Sleep 1
-      $stopped = (Get-service $service).Status -eq 'Stopped'
+    Start-Sleep 1
+    $stopped = (Get-service $service).Status -eq 'Stopped'
   }
 
   if ((Get-service $service).Status -ne 'Stopped') {
@@ -1647,8 +1655,8 @@ function Install-LoggingAgent {
     Remove-Item `
       -Force `
       -ErrorAction Ignore `
-      ("$STACKDRIVER_ROOT\LoggingAgent\Main\pos\winevtlog.pos\worker0\" +
-       "storage.json")
+    ("$STACKDRIVER_ROOT\LoggingAgent\Main\pos\winevtlog.pos\worker0\" +
+      "storage.json")
     Log-Output ("Skip: Stackdriver logging agent is already installed")
     return
   }
@@ -1670,28 +1678,28 @@ function Install-LoggingAgent {
 function DownloadAndInstall-LoggingAgents {
   # Install Logging agent if not present
   if (ShouldWrite-File $LOGGINGAGENT_ROOT\td-agent-bit-${LOGGINGAGENT_VERSION}-win64) {
-      $install_dir = 'C:\flb-installers'
-      $url = ("https://storage.googleapis.com/gke-release/winnode/fluentbit/td-agent-bit-${LOGGINGAGENT_VERSION}-win64.zip")
+    $install_dir = 'C:\flb-installers'
+    $url = ("https://storage.googleapis.com/gke-release/winnode/fluentbit/td-agent-bit-${LOGGINGAGENT_VERSION}-win64.zip")
 
-      Log-Output 'Downloading Logging agent'
-      New-Item $install_dir -ItemType 'directory' -Force | Out-Null
-      MustDownload-File -OutFile $install_dir\td.zip -URLs $url
+    Log-Output 'Downloading Logging agent'
+    New-Item $install_dir -ItemType 'directory' -Force | Out-Null
+    MustDownload-File -OutFile $install_dir\td.zip -URLs $url
 
-      cd $install_dir
-      Log-Output 'Extracting Logging agent'
-      Expand-Archive td.zip
-      mv .\td\td-agent-bit-${LOGGINGAGENT_VERSION}-win64\ $LOGGINGAGENT_ROOT
-      cd C:\
-      Remove-Item -Force -Recurse $install_dir
+    cd $install_dir
+    Log-Output 'Extracting Logging agent'
+    Expand-Archive td.zip
+    mv .\td\td-agent-bit-${LOGGINGAGENT_VERSION}-win64\ $LOGGINGAGENT_ROOT
+    cd C:\
+    Remove-Item -Force -Recurse $install_dir
   }
 
   # Download Logging exporter if needed
   if (ShouldWrite-File $LOGGINGEXPORTER_ROOT\flb-exporter.exe) {
-      $url = ("https://storage.googleapis.com/gke-release/winnode/fluentbit-exporter/${LOGGINGEXPORTER_VERSION}/flb-exporter-${LOGGINGEXPORTER_VERSION}.exe")
-      Log-Output 'Downloading logging exporter'
-      New-Item $LOGGINGEXPORTER_ROOT -ItemType 'directory' -Force | Out-Null
-      MustDownload-File `
-          -OutFile $LOGGINGEXPORTER_ROOT\flb-exporter.exe -URLs $url
+    $url = ("https://storage.googleapis.com/gke-release/winnode/fluentbit-exporter/${LOGGINGEXPORTER_VERSION}/flb-exporter-${LOGGINGEXPORTER_VERSION}.exe")
+    Log-Output 'Downloading logging exporter'
+    New-Item $LOGGINGEXPORTER_ROOT -ItemType 'directory' -Force | Out-Null
+    MustDownload-File `
+      -OutFile $LOGGINGEXPORTER_ROOT\flb-exporter.exe -URLs $url
   }
 }
 
@@ -1713,8 +1721,8 @@ function Create-LoggingAgentServices {
 # should then be called to pick up the new configuration.
 function Configure-LoggingAgent {
   if (IsStackdriverAgentInstalled) {
-      Configure-StackdriverAgent
-      return
+    Configure-StackdriverAgent
+    return
   }
 
   $fluentbit_config_file = "$LOGGINGAGENT_ROOT\conf\fluent-bit.conf"
@@ -2022,8 +2030,8 @@ function Restart-StackdriverAgent {
   $timeout = 10
   $stopped = (Get-service StackdriverLogging).Status -eq 'Stopped'
   for ($i = 0; $i -lt $timeout -and !($stopped); $i++) {
-      Start-Sleep 1
-      $stopped = (Get-service StackdriverLogging).Status -eq 'Stopped'
+    Start-Sleep 1
+    $stopped = (Get-service StackdriverLogging).Status -eq 'Stopped'
   }
 
   if ((Get-service StackdriverLogging).Status -ne 'Stopped') {

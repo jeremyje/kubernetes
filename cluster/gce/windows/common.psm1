@@ -39,7 +39,7 @@ Export-ModuleMember -Variable REDO_STEPS
 # Writes $Message to the console. Terminates the script if $Fatal is set.
 function Log-Output {
   param (
-    [parameter(Mandatory=$true)] [string]$Message,
+    [parameter(Mandatory = $true)] [string]$Message,
     [switch]$Fatal
   )
   Write-Host "${Message}"
@@ -57,7 +57,7 @@ function Log-Output {
 # the caller should not overwrite it.
 function ShouldWrite-File {
   param (
-    [parameter(Mandatory=$true)] [string]$Filename
+    [parameter(Mandatory = $true)] [string]$Filename
   )
   if (Test-Path $Filename) {
     if ($REDO_STEPS) {
@@ -74,8 +74,8 @@ function ShouldWrite-File {
 # in the instance metadata returns $Default if set, otherwise returns $null.
 function Get-InstanceMetadata {
   param (
-    [parameter(Mandatory=$true)] [string]$Key,
-    [parameter(Mandatory=$false)] [string]$Default
+    [parameter(Mandatory = $true)] [string]$Key,
+    [parameter(Mandatory = $false)] [string]$Default
   )
 
   $url = "http://metadata.google.internal/computeMetadata/v1/instance/$Key"
@@ -95,13 +95,25 @@ function Get-InstanceMetadata {
   }
 }
 
+
+# Wait for jobs to complete. If there are any errors there will be thrown.
+function Wait-AllJobs {
+  param (
+    [parameter(Mandatory = $true)] [System.Management.Automation.Job[]]$Jobs
+  )
+  foreach ($job in $Jobs) {
+    $job | Wait-Job | Out-Null
+    Receive-Job $job -ErrorAction Stop | Out-Null
+  }
+}
+
 # Returns the GCE instance metadata value for $Key where key is an "attribute"
 # of the instance. If the key is not present in the instance metadata returns
 # $Default if set, otherwise returns $null.
 function Get-InstanceMetadataAttribute {
   param (
-    [parameter(Mandatory=$true)] [string]$Key,
-    [parameter(Mandatory=$false)] [string]$Default
+    [parameter(Mandatory = $true)] [string]$Key,
+    [parameter(Mandatory = $false)] [string]$Default
   )
 
   return Get-InstanceMetadata "attributes/$Key" $Default
@@ -109,9 +121,9 @@ function Get-InstanceMetadataAttribute {
 
 function Validate-SHA {
   param(
-    [parameter(Mandatory=$true)] [string]$Hash,
-    [parameter(Mandatory=$true)] [string]$Path,
-    [parameter(Mandatory=$true)] [string]$Algorithm
+    [parameter(Mandatory = $true)] [string]$Hash,
+    [parameter(Mandatory = $true)] [string]$Path,
+    [parameter(Mandatory = $true)] [string]$Algorithm
   )
   $actual = Get-FileHash -Path $Path -Algorithm $Algorithm
   # Note: Powershell string comparisons are case-insensitive by default, and this
@@ -262,7 +274,7 @@ function Get-RemoteFile {
 # Returns the default service account token for the VM, retrieved from
 # the instance metadata.
 function Get-Credentials {
-  While($true) {
+  While ($true) {
     $data = Get-InstanceMetadata -Key "service-accounts/default/token"
     if ($data) {
       return ($data | ConvertFrom-Json).access_token
@@ -273,7 +285,7 @@ function Get-Credentials {
 
 # Returns True if the VM has the dev storage scope, False otherwise.
 function Check-StorageScope {
-  While($true) {
+  While ($true) {
     $data = Get-InstanceMetadata -Key "service-accounts/default/scopes"
     if ($data) {
       return ($data -match "auth/devstorage")
@@ -324,7 +336,7 @@ $Kernel32 = Add-Type -MemberDefinition $SyscallDefinitions -Name 'Kernel32' -Nam
 # On failure, throws an exception.
 function Close-Handle {
   param (
-    [parameter(Mandatory=$true)] [System.IntPtr]$Handle
+    [parameter(Mandatory = $true)] [System.IntPtr]$Handle
   )
   $ret = $Kernel32::CloseHandle($Handle)
   $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
@@ -338,7 +350,7 @@ function Close-Handle {
 # On failure, throws an exception.
 function Open-File {
   param (
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [string]$Path
   )
 
   $lpFileName = $Path
@@ -366,7 +378,7 @@ function Open-File {
 # so our log writers should be doing the right thing.
 function Truncate-File {
   param (
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [string]$Path
   )
   $INVALID_SET_FILE_POINTER = 0xffffffff
   $NO_ERROR = 0
@@ -413,16 +425,16 @@ class FileRotationConfig {
 function New-FileRotationConfig {
   param (
     # Force rotation, ignoring $MaxBackupInterval and $MaxSize criteria.
-    [parameter(Mandatory=$false)] [switch]$Force,
+    [parameter(Mandatory = $false)] [switch]$Force,
     # Maximum time since last backup, after which file will be rotated.
     # When no backups exist, Rotate-File acts as if -MaxBackupInterval has not elapsed,
     # instead relying on the other criteria.
     # Defaults to daily rotations.
-    [parameter(Mandatory=$false)] [TimeSpan]$MaxBackupInterval = $(New-TimeSpan -Day 1),
+    [parameter(Mandatory = $false)] [TimeSpan]$MaxBackupInterval = $(New-TimeSpan -Day 1),
     # Maximum file size, after which file will be rotated.
-    [parameter(Mandatory=$false)] [int]$MaxSize = 100mb,
+    [parameter(Mandatory = $false)] [int]$MaxSize = 100mb,
     # Maximum number of backup archives to maintain.
-    [parameter(Mandatory=$false)] [int]$MaxBackups = 5
+    [parameter(Mandatory = $false)] [int]$MaxBackups = 5
   )
   $config = [FileRotationConfig]::new()
   $config.Force = $Force
@@ -438,12 +450,12 @@ function New-FileRotationConfig {
 function Get-Backups {
   param (
     # Original path of the file for which backups were created (no suffix).
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [string]$Path
   )
   $parent = Split-Path -Parent -Path $Path
   $leaf = Split-Path -Leaf -Path $Path
   $files = Get-ChildItem -File -Path $parent |
-           Where-Object Name -like "${leaf}*.zip"
+  Where-Object Name -like "${leaf}*.zip"
   return $files
 }
 
@@ -451,8 +463,8 @@ function Get-Backups {
 # Deletes backups with the oldest CreationTime first.
 function Trim-Backups {
   param (
-    [parameter(Mandatory=$true)] [int]$Count,
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [int]$Count,
+    [parameter(Mandatory = $true)] [string]$Path
   )
   if ($Count -lt 0) {
     $Count = 0
@@ -479,7 +491,7 @@ function Trim-Backups {
 # Returns the path to the backup file.
 function Backup-File {
   param (
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [string]$Path
   )
   $date = Get-Date -UFormat "%Y%m%d-%s"
   $dest = "${Path}-${date}"
@@ -493,7 +505,7 @@ function Backup-File {
 # which helps minimize log loss.
 function Compress-BackupFile {
   param (
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [string]$Path
   )
   Compress-Archive -Path $Path -DestinationPath "${Path}.zip"
   Remove-Item -Path $Path
@@ -505,9 +517,9 @@ function Compress-BackupFile {
 function Rotate-File {
   param (
     # Path to the log file to rotate.
-    [parameter(Mandatory=$true)] [string]$Path,
+    [parameter(Mandatory = $true)] [string]$Path,
     # Config for file rotation.
-    [parameter(Mandatory=$true)] [FileRotationConfig]$Config
+    [parameter(Mandatory = $true)] [FileRotationConfig]$Config
   )
   function rotate {
     # If creating a new backup will exceed $MaxBackups, delete the oldest files
@@ -549,18 +561,19 @@ function Rotate-File {
 function Rotate-Files {
   param (
     # Pattern that file names must match to be rotated. Does not include parent path.
-    [parameter(Mandatory=$true)] [string]$Pattern,
+    [parameter(Mandatory = $true)] [string]$Pattern,
     # Path to the log directory containing files to rotate.
-    [parameter(Mandatory=$true)] [string]$Path,
+    [parameter(Mandatory = $true)] [string]$Path,
     # Config for file rotation.
-    [parameter(Mandatory=$true)] [FileRotationConfig]$Config
+    [parameter(Mandatory = $true)] [FileRotationConfig]$Config
 
   )
   $files = Get-ChildItem -File -Path $Path | Where-Object Name -match $Pattern
   ForEach ($file in $files) {
     try {
       Rotate-File -Path $file.FullName -Config $Config
-    } catch {
+    }
+    catch {
       Log-Output "Caught exception rotating $($file.FullName): $($_.Exception)"
     }
   }
@@ -572,14 +585,14 @@ function Rotate-Files {
 function Schedule-LogRotation {
   param (
     # Pattern that file names must match to be rotated. Does not include parent path.
-    [parameter(Mandatory=$true)] [string]$Pattern,
+    [parameter(Mandatory = $true)] [string]$Pattern,
     # Path to the log directory containing files to rotate.
-    [parameter(Mandatory=$true)] [string]$Path,
+    [parameter(Mandatory = $true)] [string]$Path,
     # Interval at which to check logs against rotation criteria.
     # Minimum 1 minute, maximum 31 days (see https://docs.microsoft.com/en-us/windows/desktop/taskschd/taskschedulerschema-interval-repetitiontype-element).
-    [parameter(Mandatory=$true)] [TimeSpan]$RepetitionInterval,
+    [parameter(Mandatory = $true)] [TimeSpan]$RepetitionInterval,
     # Config for file rotation.
-    [parameter(Mandatory=$true)] [FileRotationConfig]$Config
+    [parameter(Mandatory = $true)] [FileRotationConfig]$Config
   )
   # Write a powershell script to a file that imports this module ($PSCommandPath)
   # and calls Rotate-Files with the configured arguments.
@@ -609,7 +622,8 @@ Rotate-Files -Pattern '${Pattern}' -Path '${Path}' -Config `$config
   $name = "RotateKubeLogs"
   try {
     Unregister-ScheduledTask -Confirm:$false -TaskName $name
-  } catch {} finally {
+  }
+  catch {} finally {
     Register-ScheduledTask -TaskName $name -InputObject $task
   }
 }
@@ -619,11 +633,11 @@ Rotate-Files -Pattern '${Pattern}' -Path '${Path}' -Config `$config
 # metadata keys+values.
 function Test-IsTestCluster {
   param (
-    [parameter(Mandatory=$true)] [hashtable]$KubeEnv
+    [parameter(Mandatory = $true)] [hashtable]$KubeEnv
   )
 
   if ($KubeEnv.Contains('TEST_CLUSTER') -and `
-      ($KubeEnv['TEST_CLUSTER'] -eq 'true')) {
+    ($KubeEnv['TEST_CLUSTER'] -eq 'true')) {
     return $true
   }
   return $false
@@ -634,7 +648,7 @@ function Test-IsTestCluster {
 # containing the kube-env metadata keys+values.
 function Test-NodeUsesAuthPlugin {
   param (
-    [parameter(Mandatory=$true)] [hashtable]$KubeEnv
+    [parameter(Mandatory = $true)] [hashtable]$KubeEnv
   )
 
   return $KubeEnv.Contains('EXEC_AUTH_PLUGIN_URL')
@@ -643,20 +657,20 @@ function Test-NodeUsesAuthPlugin {
 # Permanently adds a directory to the $env:PATH environment variable.
 function Add-MachineEnvironmentPath {
   param (
-    [parameter(Mandatory=$true)] [string]$Path
+    [parameter(Mandatory = $true)] [string]$Path
   )
   # Verify that the $Path is not already in the $env:Path variable.
   $pathForCompare = $Path.TrimEnd('\').ToLower()
   foreach ($p in $env:Path.Split(";")) {
     if ($p.TrimEnd('\').ToLower() -eq $pathForCompare) {
-        return
+      return
     }
   }
 
   $newMachinePath = $Path + ";" + `
-    [System.Environment]::GetEnvironmentVariable("Path","Machine")
+    [System.Environment]::GetEnvironmentVariable("Path", "Machine")
   [Environment]::SetEnvironmentVariable("Path", $newMachinePath, `
-    [System.EnvironmentVariableTarget]::Machine)
+      [System.EnvironmentVariableTarget]::Machine)
   $env:Path = $Path + ";" + $env:Path
 }
 

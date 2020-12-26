@@ -38,12 +38,12 @@ $ProgressPreference = 'SilentlyContinue'
 # $Default if set, otherwise returns $null.
 function Get-InstanceMetadataAttribute {
   param (
-    [parameter(Mandatory=$true)] [string]$Key,
-    [parameter(Mandatory=$false)] [string]$Default
+    [parameter(Mandatory = $true)] [string]$Key,
+    [parameter(Mandatory = $false)] [string]$Default
   )
 
   $url = ("http://metadata.google.internal/computeMetadata/v1/instance/" +
-          "attributes/$Key")
+    "attributes/$Key")
   try {
     $client = New-Object Net.WebClient
     $client.Headers.Add('Metadata-Flavor', 'Google')
@@ -66,8 +66,8 @@ function Get-InstanceMetadataAttribute {
 # Note: this function depends on common.psm1.
 function FetchAndImport-ModuleFromMetadata {
   param (
-    [parameter(Mandatory=$true)] [string]$MetadataKey,
-    [parameter(Mandatory=$true)] [string]$Filename
+    [parameter(Mandatory = $true)] [string]$MetadataKey,
+    [parameter(Mandatory = $true)] [string]$Filename
   )
 
   $module = Get-InstanceMetadataAttribute $MetadataKey
@@ -90,89 +90,210 @@ function FetchAndImport-ModuleFromMetadata {
 # soon. ENABLE_STACKDRIVER_WINDOWS is added to indicate whether logging is enabled for windows nodes.
 function IsLoggingEnabled {
   param (
-    [parameter(Mandatory=$true)] [hashtable]$KubeEnv
+    [parameter(Mandatory = $true)] [hashtable]$KubeEnv
   )
 
   if ($KubeEnv.Contains('ENABLE_STACKDRIVER_WINDOWS') -and `
-      ($KubeEnv['ENABLE_STACKDRIVER_WINDOWS'] -eq 'true')) {
+    ($KubeEnv['ENABLE_STACKDRIVER_WINDOWS'] -eq 'true')) {
     return $true
-  } elseif ($KubeEnv.Contains('ENABLE_NODE_LOGGING') -and `
-      ($KubeEnv['ENABLE_NODE_LOGGING'] -eq 'true')) {
+  }
+  elseif ($KubeEnv.Contains('ENABLE_NODE_LOGGING') -and `
+    ($KubeEnv['ENABLE_NODE_LOGGING'] -eq 'true')) {
     return $true
   }
   return $false
 }
 
-try {
-  # Don't use FetchAndImport-ModuleFromMetadata for common.psm1 - the common
-  # module includes variables and functions that any other function may depend
-  # on.
-  $module = Get-InstanceMetadataAttribute 'common-psm1'
-  New-Item -ItemType file -Force C:\common.psm1 | Out-Null
-  Set-Content C:\common.psm1 $module
-  Import-Module -Force C:\common.psm1
+function KubernetesParallelMain {
+  try {
+    # Don't use FetchAndImport-ModuleFromMetadata for common.psm1 - the common
+    # module includes variables and functions that any other function may depend
+    # on.
+    $module = Get-InstanceMetadataAttribute 'common-psm1'
+    New-Item -ItemType file -Force C:\common.psm1 | Out-Null
+    Set-Content C:\common.psm1 $module
+    Import-Module -Force C:\common.psm1
 
-  # TODO(pjh): update the function to set $Filename automatically from the key,
-  # then put these calls into a loop over a list of XYZ-psm1 keys.
-  FetchAndImport-ModuleFromMetadata 'k8s-node-setup-psm1' 'k8s-node-setup.psm1'
+    # Enable Parallel Processing
+    Install-Module -Name ThreadJob -Scope CurrentUser
+  
+    # TODO(pjh): update the function to set $Filename automatically from the key,
+    # then put these calls into a loop over a list of XYZ-psm1 keys.
+    FetchAndImport-ModuleFromMetadata 'k8s-node-setup-psm1' 'k8s-node-setup.psm1'
+  
+    Dump-DebugInfoToConsole
+    Set-PrerequisiteOptions
+    $kube_env = Fetch-KubeEnv
+  
+    if (Test-IsTestCluster $kube_env) {
+      Log-Output 'Test cluster detected, installing OpenSSH.'
+      FetchAndImport-ModuleFromMetadata 'install-ssh-psm1' 'install-ssh.psm1'
+      InstallAndStart-OpenSsh
+      StartProcess-WriteSshKeys
+    }
+  
+    Set-EnvironmentVars
+    Create-Directories
+    Download-HelperScripts
+  
+    $installCrictlJob = Start-ThreadJob -Name "Setup-ContainerRuntime" -ScriptBlock {
+      DownloadAndInstall-Crictl
+      Configure-Crictl
+    }
 
-  Dump-DebugInfoToConsole
-  Set-PrerequisiteOptions
-  $kube_env = Fetch-KubeEnv
+    $installContainerRuntimeJob = Start-ThreadJob -Name "Setup-ContainerRuntime" -ScriptBlock {
+      Setup-ContainerRuntime
+    }
 
-  if (Test-IsTestCluster $kube_env) {
-    Log-Output 'Test cluster detected, installing OpenSSH.'
-    FetchAndImport-ModuleFromMetadata 'install-ssh-psm1' 'install-ssh.psm1'
-    InstallAndStart-OpenSsh
-    StartProcess-WriteSshKeys
+    $pullContainersJob = Start-ThreadJob -Name "Pull-InfraContainer" -ScriptBlock {
+      Pull-InfraContainer
+    }
+
+    $installAuthPluginJob = Start-ThreadJob -Name "DownloadAndInstall-AuthPlugin" -ScriptBlock {
+      DownloadAndInstall-AuthPlugin
+    }
+
+    $installKubernetesBinaries = Start-ThreadJob -Name "DownloadAndInstall-KubernetesBinaries" -ScriptBlock {
+      DownloadAndInstall-KubernetesBinaries
+    }
+
+    $installCSIProxy = Start-ThreadJob -ScriptBlock {
+      DownloadAndInstall-CSIProxyBinaries
+      Start-CSIProxy
+    }
+    
+    Wait-AllJobs -Jobs @($installCrictlJob, $installContainerRuntimeJob, $installAuthPluginJob, $installKubernetesBinaries, $installCSIProxy)
+    
+    Create-NodePki
+    Create-KubeletKubeconfig
+    Create-KubeproxyKubeconfig
+    $configureNetworkJob = Start-ThreadJob -Name "Configure-Network" -ScriptBlock {
+      Set-PodCidr
+      Configure-HostNetworkingService
+      Prepare-CniNetworking
+      Configure-HostDnsConf
+    }
+
+    $configureKubernetesJob = Start-ThreadJob -Name "Configure-Kubernetes" -ScriptBlock {
+      Configure-GcePdTools
+      Configure-Kubelet
+    }
+  
+    $installLoggingAgentJob = Start-ThreadJob -Name "Install-LoggingAgent" -ScriptBlock {
+      # Even if Logging agent is already installed, the function will still [re]start the service.
+      if (IsLoggingEnabled $kube_env) {
+        Install-LoggingAgent
+        Configure-LoggingAgent
+        Restart-LoggingAgent
+      }
+    }
+
+    Wait-AllJobs -Jobs @($configureNetworkJob, $configureKubernetesJob, $installLoggingAgentJob)
+  
+    # Flush cache to disk before starting kubelet & kube-proxy services
+    # to make metadata server route and stackdriver service more persistent.
+    Write-Volumecache C -PassThru
+    Start-WorkerServices
+    Log-Output 'Waiting 15 seconds for node to join cluster.'
+    Start-Sleep 15
+    Verify-WorkerServices
+  
+    $config = New-FileRotationConfig
+    # TODO(random-liu): Generate containerd log into the log directory.
+    Schedule-LogRotation -Pattern '.*\.log$' -Path ${env:LOGS_DIR} -RepetitionInterval $(New-Timespan -Hour 1) -Config $config
+  
+    Wait-AllJobs -Jobs @($pullContainersJob)
+
+    # Flush cache to disk to persist the setup status
+    Write-Volumecache C -PassThru
   }
-
-  Set-EnvironmentVars
-  Create-Directories
-  Download-HelperScripts
-
-  DownloadAndInstall-Crictl
-  Configure-Crictl
-  Setup-ContainerRuntime
-  DownloadAndInstall-AuthPlugin
-  DownloadAndInstall-KubernetesBinaries
-  DownloadAndInstall-CSIProxyBinaries
-  Start-CSIProxy
-  Create-NodePki
-  Create-KubeletKubeconfig
-  Create-KubeproxyKubeconfig
-  Set-PodCidr
-  Configure-HostNetworkingService
-  Prepare-CniNetworking
-  Configure-HostDnsConf
-  Configure-GcePdTools
-  Configure-Kubelet
-
-  # Even if Logging agent is already installed, the function will still [re]start the service.
-  if (IsLoggingEnabled $kube_env) {
-    Install-LoggingAgent
-    Configure-LoggingAgent
-    Restart-LoggingAgent
+  catch {
+    Write-Host 'Exception caught in script:'
+    Write-Host $_.InvocationInfo.PositionMessage
+    Write-Host "Kubernetes Windows node setup failed: $($_.Exception.Message)"
+    exit 1
   }
-  # Flush cache to disk before starting kubelet & kube-proxy services
-  # to make metadata server route and stackdriver service more persistent.
-  Write-Volumecache C -PassThru
-  Start-WorkerServices
-  Log-Output 'Waiting 15 seconds for node to join cluster.'
-  Start-Sleep 15
-  Verify-WorkerServices
-
-  $config = New-FileRotationConfig
-  # TODO(random-liu): Generate containerd log into the log directory.
-  Schedule-LogRotation -Pattern '.*\.log$' -Path ${env:LOGS_DIR} -RepetitionInterval $(New-Timespan -Hour 1) -Config $config
-
-  Pull-InfraContainer
-  # Flush cache to disk to persist the setup status
-  Write-Volumecache C -PassThru
 }
-catch {
-  Write-Host 'Exception caught in script:'
-  Write-Host $_.InvocationInfo.PositionMessage
-  Write-Host "Kubernetes Windows node setup failed: $($_.Exception.Message)"
-  exit 1
+
+function KubernetesMain {
+  try {
+    # Don't use FetchAndImport-ModuleFromMetadata for common.psm1 - the common
+    # module includes variables and functions that any other function may depend
+    # on.
+    $module = Get-InstanceMetadataAttribute 'common-psm1'
+    New-Item -ItemType file -Force C:\common.psm1 | Out-Null
+    Set-Content C:\common.psm1 $module
+    Import-Module -Force C:\common.psm1
+  
+    # TODO(pjh): update the function to set $Filename automatically from the key,
+    # then put these calls into a loop over a list of XYZ-psm1 keys.
+    FetchAndImport-ModuleFromMetadata 'k8s-node-setup-psm1' 'k8s-node-setup.psm1'
+  
+    Dump-DebugInfoToConsole
+    Set-PrerequisiteOptions
+    $kube_env = Fetch-KubeEnv
+  
+    if (Test-IsTestCluster $kube_env) {
+      Log-Output 'Test cluster detected, installing OpenSSH.'
+      FetchAndImport-ModuleFromMetadata 'install-ssh-psm1' 'install-ssh.psm1'
+      InstallAndStart-OpenSsh
+      StartProcess-WriteSshKeys
+    }
+  
+    Set-EnvironmentVars
+    Create-Directories
+    Download-HelperScripts
+  
+    DownloadAndInstall-Crictl
+    Configure-Crictl
+    Setup-ContainerRuntime
+    DownloadAndInstall-AuthPlugin
+    DownloadAndInstall-KubernetesBinaries
+    DownloadAndInstall-CSIProxyBinaries
+    Start-CSIProxy
+    Create-NodePki
+    Create-KubeletKubeconfig
+    Create-KubeproxyKubeconfig
+    Set-PodCidr
+    Configure-HostNetworkingService
+    Prepare-CniNetworking
+    Configure-HostDnsConf
+    Configure-GcePdTools
+    Configure-Kubelet
+  
+    # Even if Logging agent is already installed, the function will still [re]start the service.
+    if (IsLoggingEnabled $kube_env) {
+      Install-LoggingAgent
+      Configure-LoggingAgent
+      Restart-LoggingAgent
+    }
+    # Flush cache to disk before starting kubelet & kube-proxy services
+    # to make metadata server route and stackdriver service more persistent.
+    Write-Volumecache C -PassThru
+    Start-WorkerServices
+    Log-Output 'Waiting 15 seconds for node to join cluster.'
+    Start-Sleep 15
+    Verify-WorkerServices
+  
+    $config = New-FileRotationConfig
+    # TODO(random-liu): Generate containerd log into the log directory.
+    Schedule-LogRotation -Pattern '.*\.log$' -Path ${env:LOGS_DIR} -RepetitionInterval $(New-Timespan -Hour 1) -Config $config
+  
+    Pull-InfraContainer
+    # Flush cache to disk to persist the setup status
+    Write-Volumecache C -PassThru
+  }
+  catch {
+    Write-Host 'Exception caught in script:'
+    Write-Host $_.InvocationInfo.PositionMessage
+    Write-Host "Kubernetes Windows node setup failed: $($_.Exception.Message)"
+    exit 1
+  }
+}
+
+if ($KubeEnv.Contains('WINDOWS_THREADED_STARTUP') -and `
+  ($KubeEnv['WINDOWS_THREADED_STARTUP'] -eq 'true')) {
+  KubernetesParallelMain
+} else {
+  KubernetesMain
 }
