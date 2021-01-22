@@ -560,6 +560,12 @@ export ETCD_PROGRESS_NOTIFY_INTERVAL="${ETCD_PROGRESS_NOTIFY_INTERVAL:-10m}"
 # unzipping the image layers to disk.
 export WINDOWS_ENABLE_PIGZ="${WINDOWS_ENABLE_PIGZ:-true}"
 
+# Optional: Enable Windows DSR (Direct Server Return) Mode
+# Enabling this option tells kube-proxy to enable DSR mode.
+# This improves network performance and reduces the number of ports consumed for a service.
+# https://techcommunity.microsoft.com/t5/networking-blog/direct-server-return-dsr-in-a-nutshell/ba-p/693710
+export WINDOWS_ENABLE_DSR="${WINDOWS_ENABLE_DSR:-false}"
+
 # TLS_CIPHER_SUITES defines cipher suites allowed to be used by kube-apiserver. 
 # If this variable is unset or empty, kube-apiserver will allow its default set of cipher suites.
 export TLS_CIPHER_SUITES=""

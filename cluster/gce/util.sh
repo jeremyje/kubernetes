@@ -931,6 +931,12 @@ function construct-windows-kubeproxy-flags {
   # so we actually log to the file
   flags+=" --logtostderr=false"
 
+  if [[ "${WINDOWS_ENABLE_DSR:-}" == "true" ]]; then
+    # Enable Windows DSR mode.
+    flags+=" --enable-dsr=true"
+    flags+=" --feature-gates=WinDSR=true"
+  fi
+
   # Configure flags with explicit empty string values. We can't escape
   # double-quotes, because they still break sc.exe after expansion in the
   # binPath parameter, and single-quotes get parsed as characters instead
